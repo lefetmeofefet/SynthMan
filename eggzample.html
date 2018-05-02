@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Eggzample</title>
+</head>
+<body>
+<script>
+    let sampleRate; // Will be set later
+    let hz = 1000;
+    let currentSample = 0;
+
+
+    hookMicrophoneProcessor(() => {
+        // This runs `sampleRate` times per second, and returns a single sound sample
+        currentSample += 1;
+        let seconds = currentSample / sampleRate;
+        let phaseTime = hz * (Math.PI * 2);
+        hz *= 0.999995;
+
+        return Math.sin(seconds * phaseTime);
+    });
+
+    function hookMicrophoneProcessor(processSampleCallback) {
+        navigator.mediaDevices.getUserMedia({audio: true, video: false})
+            .then((stream) => {
+                let context = new AudioContext();
+                sampleRate = context.sampleRate;
+                let processor = context.createScriptProcessor(512, 0, 1);
+
+                processor.connect(context.destination);
+
+                console.log("BufferSize: ", processor.bufferSize);
+                console.log("Channel Count: ", processor.channelCount);
+                console.log("Input Channels: ", processor.numberOfInputs);
+                console.log("Output Channels: ", processor.numberOfOutputs);
+
+                processor.onaudioprocess = function (e) {
+                    let outputBuffer = e.outputBuffer;
+
+                    // Loop through the output channels (in this case there is only one)
+                    for (let channel = 0; channel < outputBuffer.numberOfChannels; channel++) {
+                        let outputData = outputBuffer.getChannelData(channel);
+
+                        // Loop through the samples. This sets the next 512 samples to be played
+                        for (let sample = 0; sample < outputBuffer.length; sample++) {
+                            outputData[sample] = processSampleCallback();
+                        }
+                    }
+                };
+            });
+    }
+</script>
+</body>
+</html>

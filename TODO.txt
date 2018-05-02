@@ -1,0 +1,3 @@
+* Interpolation between last two graphs
+* Try the apple way of change recognition
+* Higher resolution

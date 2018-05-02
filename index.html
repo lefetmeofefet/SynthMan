@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SynthMel</title>
+</head>
+<body>
+<script src="array-2d.js"></script>
+<script src="sounds.js"></script>
+<script src="skeleton.js"></script>
+<style>
+    body {
+        background-color: #161616;
+    }
+
+    video {
+        transform: rotateY(180deg);
+    }
+
+    #waveformCanvas {
+        position: fixed;
+        top: 140px;
+        background-color: #161616;
+    }
+</style>
+<canvas id="waveformCanvas" width="160" height="120"></canvas>
+<video id="video" controls autoplay></video>
+<canvas id="recognitionCanvas" width="160" height="120"></canvas>
+<canvas id="graphCanvas" width="160" height="120"></canvas>
+
+
+<script>
+    let testgraph= [];
+
+    let waveformCanvas;
+    let waveformCanvasContext;
+
+    let frame = 0;
+//    let graph = [];
+    let graph = [0, 0.06279051952931337, 0.12533323356430426, 0.1873813145857246, 0.2486898871648548, 0.3090169943749474, 0.3681245526846779, 0.4257792915650727, 0.4817536741017153, 0.5358267949789967, 0.5877852522924731, 0.6374239897486896, 0.6845471059286886, 0.7289686274214116, 0.7705132427757893, 0.8090169943749475, 0.8443279255020151, 0.8763066800438637, 0.9048270524660196, 0.9297764858882513, 0.9510565162951535, 0.9685831611286311, 0.9822872507286886, 0.9921147013144779, 0.9980267284282716, 1, 0.9980267284282716, 0.9921147013144778, 0.9822872507286886, 0.9685831611286312, 0.9510565162951536, 0.9297764858882515, 0.9048270524660195, 0.8763066800438635, 0.844327925502015, 0.8090169943749475, 0.7705132427757893, 0.7289686274214114, 0.6845471059286888, 0.6374239897486899, 0.5877852522924732, 0.535826794978997, 0.4817536741017156, 0.4257792915650729, 0.36812455268467814, 0.3090169943749475, 0.24868988716485482, 0.18738131458572502, 0.12533323356430454, 0.06279051952931358, 1.2246467991473532e-16, -0.06279051952931335, -0.12533323356430429, -0.18738131458572477, -0.24868988716485502, -0.30901699437494773, -0.3681245526846783, -0.42577929156507227, -0.481753674101715, -0.5358267949789964, -0.587785252292473, -0.6374239897486896, -0.6845471059286887, -0.7289686274214113, -0.7705132427757894, -0.8090169943749473, -0.8443279255020153, -0.8763066800438636, -0.9048270524660198, -0.9297764858882511, -0.9510565162951535, -0.968583161128631, -0.9822872507286887, -0.9921147013144778, -0.9980267284282716, -1, -0.9980267284282716, -0.9921147013144779, -0.9822872507286887, -0.9685831611286311, -0.9510565162951536, -0.9297764858882512, -0.9048270524660199, -0.8763066800438638, -0.8443279255020155, -0.8090169943749476, -0.7705132427757896, -0.7289686274214116, -0.684547105928689, -0.6374239897486896, -0.5877852522924734, -0.5358267949789963, -0.4817536741017153, -0.4257792915650722, -0.3681245526846787, -0.3090169943749476, -0.24868988716485535, -0.18738131458572468, -0.12533323356430465, -0.06279051952931326];
+    let frequencies = [
+        500,
+        500 * Math.pow(2, 3 / 12),
+        500 * Math.pow(2, 6 / 12),
+        500 * Math.pow(2, 8 / 12)
+    ];
+
+    function bezierInterpolate(p0, p1, p2, p3, interpolationValue) {
+        let i10 = p0 * (1 - interpolationValue) + p1 * (interpolationValue);
+        let i11 = p1 * (1 - interpolationValue) + p2 * (interpolationValue);
+        let i12 = p2 * (1 - interpolationValue) + p3 * (interpolationValue);
+
+        let i20 = i10 * (1 - interpolationValue) + i11 * (interpolationValue);
+        let i21 = i11 * (1 - interpolationValue) + i12 * (interpolationValue);
+
+        return i20 * (1 - interpolationValue) + i21 * (interpolationValue);
+    }
+
+    function play() {
+        let sample;
+        let timeInSeconds;
+        let normalizedProgressInGraph;
+
+        let progressInGraph, graphIndex, interpolationValue;
+        Sounds.hookMicrophoneProcessor(() => {
+            // TODO: Invert the graph. 0 should be below
+            frame += 1;
+
+            timeInSeconds = frame / Sounds.SampleRate;
+            sample = 0;
+
+            for (let frequency of frequencies) {
+                normalizedProgressInGraph = (timeInSeconds * frequency) % 1;
+                progressInGraph = normalizedProgressInGraph * graph.length;
+
+                graphIndex = Math.floor(progressInGraph);
+                interpolationValue = progressInGraph % 1;
+
+//                interpolatedValue = bezierInterpolate();
+                sample += graph[graphIndex] * (1 - interpolationValue) + graph[(graphIndex + 1) % graph.length] * interpolationValue;
+            }
+//            testgraph.push(sample / frequencies.length);
+            return sample / frequencies.length;
+        }, 2048, 0, 1);``
+    }
+
+    play();
+
+    detectSkeleton(
+        {
+            width: 160,
+            height: 120
+        },
+        document.getElementById('video'),
+        document.getElementById('recognitionCanvas'),
+        document.getElementById('graphCanvas'),
+        (updatedGraph) => {
+            graph = updatedGraph;
+            drawGraph();
+        },
+        interval = 100
+    );
+
+    function initGraph() {
+        waveformCanvas = document.getElementById("waveformCanvas");
+        waveformCanvasContext = waveformCanvas.getContext('2d');
+        waveformCanvas.width = window.innerWidth - 10;
+        waveformCanvas.height = window.innerHeight - 150;
+    }
+
+    function drawGraph() {
+        let repetitions = 3;
+        let repetitionSize = waveformCanvas.width / repetitions;
+        waveformCanvasContext.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+
+        waveformCanvasContext.beginPath();
+        waveformCanvasContext.strokeStyle="#00ff00";
+        waveformCanvasContext.lineWidth=4;
+        waveformCanvasContext.moveTo(0, ((graph[0] + 1) / 2) * waveformCanvas.height);
+
+        for (let repetition = 0; repetition < repetitions; repetition++) {
+            for (let i = 1; i < graph.length; i++) {
+                let normalizedValue = (graph[i] + 1) / 2;
+                waveformCanvasContext.lineTo(
+                    repetition * repetitionSize + (i / graph.length) * repetitionSize,
+                    3 + normalizedValue * (waveformCanvas.height - 6)
+                );
+            }
+        }
+
+        waveformCanvasContext.stroke();
+    }
+
+    initGraph();
+
+</script>
+
+</body>
+</html>
+
+
+
