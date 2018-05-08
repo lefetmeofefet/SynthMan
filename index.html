@@ -6,6 +6,7 @@
 </head>
 <body>
 <script src="array-2d.js"></script>
+<script src="webmidi.min.js"></script>
 <script src="sounds.js"></script>
 <script src="skeleton.js"></script>
 <style>
@@ -25,12 +26,13 @@
 </style>
 <canvas id="waveformCanvas" width="160" height="120"></canvas>
 <video id="video" controls autoplay></video>
+<canvas id="backgroundCanvas" width="160" height="120"></canvas>
 <canvas id="recognitionCanvas" width="160" height="120"></canvas>
 <canvas id="graphCanvas" width="160" height="120"></canvas>
 
 
 <script>
-    let testgraph= [];
+    let testgraph = [];
 
     let waveformCanvas;
     let waveformCanvasContext;
@@ -39,22 +41,11 @@
 //    let graph = [];
     let graph = [0, 0.06279051952931337, 0.12533323356430426, 0.1873813145857246, 0.2486898871648548, 0.3090169943749474, 0.3681245526846779, 0.4257792915650727, 0.4817536741017153, 0.5358267949789967, 0.5877852522924731, 0.6374239897486896, 0.6845471059286886, 0.7289686274214116, 0.7705132427757893, 0.8090169943749475, 0.8443279255020151, 0.8763066800438637, 0.9048270524660196, 0.9297764858882513, 0.9510565162951535, 0.9685831611286311, 0.9822872507286886, 0.9921147013144779, 0.9980267284282716, 1, 0.9980267284282716, 0.9921147013144778, 0.9822872507286886, 0.9685831611286312, 0.9510565162951536, 0.9297764858882515, 0.9048270524660195, 0.8763066800438635, 0.844327925502015, 0.8090169943749475, 0.7705132427757893, 0.7289686274214114, 0.6845471059286888, 0.6374239897486899, 0.5877852522924732, 0.535826794978997, 0.4817536741017156, 0.4257792915650729, 0.36812455268467814, 0.3090169943749475, 0.24868988716485482, 0.18738131458572502, 0.12533323356430454, 0.06279051952931358, 1.2246467991473532e-16, -0.06279051952931335, -0.12533323356430429, -0.18738131458572477, -0.24868988716485502, -0.30901699437494773, -0.3681245526846783, -0.42577929156507227, -0.481753674101715, -0.5358267949789964, -0.587785252292473, -0.6374239897486896, -0.6845471059286887, -0.7289686274214113, -0.7705132427757894, -0.8090169943749473, -0.8443279255020153, -0.8763066800438636, -0.9048270524660198, -0.9297764858882511, -0.9510565162951535, -0.968583161128631, -0.9822872507286887, -0.9921147013144778, -0.9980267284282716, -1, -0.9980267284282716, -0.9921147013144779, -0.9822872507286887, -0.9685831611286311, -0.9510565162951536, -0.9297764858882512, -0.9048270524660199, -0.8763066800438638, -0.8443279255020155, -0.8090169943749476, -0.7705132427757896, -0.7289686274214116, -0.684547105928689, -0.6374239897486896, -0.5877852522924734, -0.5358267949789963, -0.4817536741017153, -0.4257792915650722, -0.3681245526846787, -0.3090169943749476, -0.24868988716485535, -0.18738131458572468, -0.12533323356430465, -0.06279051952931326];
     let frequencies = [
-        500,
-        500 * Math.pow(2, 3 / 12),
-        500 * Math.pow(2, 6 / 12),
-        500 * Math.pow(2, 8 / 12)
+//        500,
+//        500 * Math.pow(2, 3 / 12),
+//        500 * Math.pow(2, 6 / 12),
+//        500 * Math.pow(2, 8 / 12)
     ];
-
-    function bezierInterpolate(p0, p1, p2, p3, interpolationValue) {
-        let i10 = p0 * (1 - interpolationValue) + p1 * (interpolationValue);
-        let i11 = p1 * (1 - interpolationValue) + p2 * (interpolationValue);
-        let i12 = p2 * (1 - interpolationValue) + p3 * (interpolationValue);
-
-        let i20 = i10 * (1 - interpolationValue) + i11 * (interpolationValue);
-        let i21 = i11 * (1 - interpolationValue) + i12 * (interpolationValue);
-
-        return i20 * (1 - interpolationValue) + i21 * (interpolationValue);
-    }
 
     function play() {
         let sample;
@@ -94,6 +85,7 @@
         document.getElementById('video'),
         document.getElementById('recognitionCanvas'),
         document.getElementById('graphCanvas'),
+        document.getElementById('backgroundCanvas'),
         (updatedGraph) => {
             graph = updatedGraph;
             drawGraph();
@@ -131,6 +123,51 @@
         waveformCanvasContext.stroke();
     }
 
+    function connectMidi() {
+        let A4_NUMBER = 69;
+        let BASE_FREQUENCY = 440;
+        function generateFrequencyFromNote(noteNumber) {
+            return BASE_FREQUENCY * Math.pow(2, (noteNumber - A4_NUMBER) / 12);
+        }
+
+        // 69 = 440
+        WebMidi.enable(function (err) {
+            if (err) {
+                console.error("WebMidi could not be enabled.", err);
+            }
+
+            // Viewing available inputs and outputs
+            console.log("Midi inputs: ", WebMidi.inputs);
+
+            // Retrieve an input by name, id or index
+            let input = WebMidi.inputs[0];
+
+            // Listen for a 'note on' message on all channels
+            input.addListener('noteon', "all",
+                function (e) {
+                    console.log(`Received 'noteon' message: ${e.note.number} (${e.note.name}  ${e.note.octave}).`);
+                    let number = e.note.number;
+                    let frequency = generateFrequencyFromNote(number);
+                    if (frequencies.indexOf(frequency) === -1) {
+                        frequencies.push(frequency);
+                    }
+                }
+            );
+
+            input.addListener('noteoff', "all",
+                function (e) {
+                    console.log(`Received 'noteoff' message: ${e.note.number} (${e.note.name}  ${e.note.octave}).`);
+                    let number = e.note.number;
+                    let frequency  = generateFrequencyFromNote(number);
+                    if (frequencies.indexOf(frequency) !== -1) {
+                        frequencies = frequencies.filter(val => val !== frequency);
+                    }
+                }
+            );
+        });
+    }
+
+    connectMidi();
     initGraph();
 
 </script>

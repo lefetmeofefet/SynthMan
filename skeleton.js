@@ -2,6 +2,7 @@ let _drawingCanvasContext;
 let _recordingCanvas;
 let _recordingCanvasContext;
 let _testingCanvasContext;
+let _backgroundCanvasContext;
 let _width;
 let _height;
 
@@ -36,10 +37,30 @@ let _BLUR_RADIUS = 5;
 let _SHAPE_BOUNDS_HISTORY_SIZE = 5;
 let _GRAPH_MAKING_ALGORITHM = "outline"; // outline or median
 
-function detectSkeleton(dimensions, videoTag, skeletonCanvas, testingCanvas, graphCallback, interval = 100) {
+
+
+
+
+// BACKGROUND CALBRATION METHOD
+let _backgroundImage;
+let _backgroundImageDiffsHistory;
+
+function detectSkeleton(dimensions, videoTag, skeletonCanvas, testingCanvas, backgroundCanvas, graphCallback, interval = 100) {
     _graphCallback = graphCallback;
     _width = dimensions.width;
     _height = dimensions.height;
+
+    _backgroundImage = new Array2D(_width, _height);
+    _backgroundImageDiffsHistory = new Array2D(_width, _height);
+    for (let y = 0; y < _height; y++) {
+        for (let x = 0; x < _width; x++) {
+            _backgroundImage.set(x, y, {r:0, g:0, b:0});
+            _backgroundImageDiffsHistory.set(x, y, {
+                numOfEqualDiffs: 0,
+                lastDiff: 0
+            })
+        }
+    }
 
     _graph = new Array(_width).fill(0);
     _graphAccumulator = new Array(_width).fill(0);
@@ -47,6 +68,7 @@ function detectSkeleton(dimensions, videoTag, skeletonCanvas, testingCanvas, gra
 
     _drawingCanvasContext = skeletonCanvas.getContext('2d');
     _testingCanvasContext = testingCanvas.getContext('2d');
+    _backgroundCanvasContext = backgroundCanvas.getContext('2d');
 
     _recordingCanvas = document.createElement('canvas');
     _recordingCanvas.setAttribute("width", _width.toString());
@@ -89,6 +111,52 @@ function _updateSkeleton() {
 
     let skeleton = _createSkeletonFromDiff(diff);
     _drawGreyscale(skeleton);
+}
+//
+// function _updateSkeleton() {
+//     let currentImage = _getPixelData();
+//     let diff = _createDiff(_backgroundImage, currentImage);
+//     _updateBackgroundImage(diff, currentImage);
+//
+//     let skeleton = _createSkeletonFromDiff(diff);
+//     _drawGreyscale(skeleton);
+// }
+
+let _frame = 0;
+function _updateBackgroundImage(diff, newImage) {
+    _frame += 1;
+
+    let MAX_FRAMES_WITH_DIFF = 30;
+    let MAX_DIFF_TO_ALLOW_INTO_BACKGROUND = _BINARY_DIFF_THRESHOLD;
+    let MOVING_BODY_MIN_DIFF = 100; // Higher = moving objects in the same area will be backgrounded,
+                                    // Lower =
+    for (let y = 0; y < _height; y++) {
+        for (let x = 0; x < _width; x++) {
+            let currentDiff = diff.get(x, y);
+            if (currentDiff > MAX_DIFF_TO_ALLOW_INTO_BACKGROUND) {
+                let diffsHistory = _backgroundImageDiffsHistory.get(x, y);
+                // If lastDiff is equal to the current diff, increment the count and finally blend pixel into background
+                if (Math.abs(currentDiff - diffsHistory.lastDiff) <= MOVING_BODY_MIN_DIFF || diffsHistory.numOfEqualDiffs === 0){
+                    diffsHistory.numOfEqualDiffs += 1;
+                    diffsHistory.lastDiff = currentDiff;
+                    if (diffsHistory.numOfEqualDiffs >= MAX_FRAMES_WITH_DIFF){
+                        _backgroundImage.set(x, y, newImage.get(x, y));
+                        diffsHistory.numOfEqualDiffs = 0;
+                        diffsHistory.lastDiff = 0;
+                    }
+                }
+                else {
+                    // Two different diffs in a row - assume moving body and do nothing
+                    diffsHistory.numOfEqualDiffs = 0;
+                }
+            }
+            else {
+                // Current pixel equal to background -  do nothing
+                _backgroundImageDiffsHistory.get(x, y).numOfEqualDiffs = 0;
+            }
+        }
+    }
+    _drawColored(_backgroundImage);
 }
 
 function _createBlurredDiffBetweenImageDatas() {
@@ -194,7 +262,7 @@ function _createSkeletonFromDiff(diff) {
             skeletonHighlight.set(x, y, value ? value : diff.get(x, y));
         }
     }
-    if (numChangedPixels > _width * _height * 0.5) {
+    if (numChangedPixels > _width * _height * 0.8) {
         throw "byebye";
     }
 
@@ -512,4 +580,27 @@ function _drawGreyscale(pixels) {
     }
 
     _drawingCanvasContext.putImageData(newImageData, 0, 0);
+}
+
+
+function _drawColored(pixels) {
+    let newImageData = _backgroundCanvasContext.createImageData(_width, _height);
+    let data = newImageData.data;
+    let index;
+    let pix;
+    for (let y = 0; y < _height; y++) {
+        let rowAddition = _width * y;
+        for (let x = 0; x < _width; x++) {
+            index = 4 * (rowAddition + x);
+            pix = pixels.get(x, y);
+            data[index] = pix.r;
+            data[index + 1] = pix.g;
+            data[index + 2] = pix.b;
+
+
+            data[index + 3] = 255;
+        }
+    }
+
+    _backgroundCanvasContext.putImageData(newImageData, 0, 0);
 }

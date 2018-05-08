@@ -1,3 +1,4 @@
 * Interpolation between last two graphs
+* Interpolation between graph values
 * Try the apple way of change recognition
 * Higher resolution
